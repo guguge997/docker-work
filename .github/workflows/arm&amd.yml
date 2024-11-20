@@ -1,0 +1,52 @@
+name: Build Multi-Platform Docker Image
+
+on:
+  workflow_dispatch:  # 手动触发工作流
+    inputs:
+      image_name:
+        description: "Docker image name"
+        required: true
+        default: "cloud-clipboard"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: 设置 Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Step 3: 构建 ARM 和 AMD 的 Docker 镜像
+      - name: Build Multi-Platform Images
+        id: build_images
+        run: |
+          # 打印工作目录内容，确保路径正确
+          ls -la
+          mkdir -p output
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file Dockerfile \
+            --output type=local,dest=output \
+            -t ${{ github.event.inputs.image_name }}:latest .
+
+      # Step 4: 等待文件释放，避免冲突
+      - name: Wait for Build Completion
+        run: sleep 5  # 确保 Buildx 的输出文件已完成写入
+
+      # Step 5: 压缩导出的镜像
+      - name: Compress Docker Image
+        run: |
+          tar -czf docker-image.tar.gz -C output .
+          echo "TAR_PATH=$PWD/docker-image.tar.gz" >> $GITHUB_ENV
+
+      # Step 6: 将导出的镜像上传为 Artifact
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-image
+          path: ${{ env.TAR_PATH }}
