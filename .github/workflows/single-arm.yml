@@ -1,0 +1,45 @@
+name: Build ARM Docker Image
+
+on:
+  workflow_dispatch:  # 手动触发工作流
+
+jobs:
+  build-arm:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: 设置 Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Step 3: 构建 ARM 架构的 Docker 镜像
+      - name: Build ARM Docker Image
+        id: build_arm
+        run: |
+          mkdir -p output
+          docker buildx build \
+            --platform linux/arm64 \
+            --file Dockerfile \
+            --output type=docker,dest=output/arm64-image.tar \
+            -t cloud-clipboard:arm64 .
+
+      # Step 4: 等待文件释放
+      - name: Wait for File Release
+        run: sleep 5  # 等待 5 秒确保文件完全写入
+
+      # Step 5: 压缩镜像文件
+      - name: Compress ARM Docker Image
+        run: |
+          tar -czf output/arm64-image.tar.gz -C output arm64-image.tar
+          echo "ARM_TAR=$PWD/output/arm64-image.tar.gz" >> $GITHUB_ENV
+
+      # Step 6: 上传镜像文件为 Artifact
+      - name: Upload ARM Docker Image
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-image-arm64
+          path: ${{ env.ARM_TAR }}
